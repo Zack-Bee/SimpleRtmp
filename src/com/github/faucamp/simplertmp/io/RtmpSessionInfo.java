@@ -64,9 +64,9 @@ public class RtmpSessionInfo {
     public final void addToWindowBytesRead(final int numBytes, final RtmpPacket packet) throws WindowAckRequired {
         windowBytesRead += numBytes;
         totalBytesRead += numBytes;
-        if (windowBytesRead >= acknowledgementWindowSize) {            
-            windowBytesRead -= acknowledgementWindowSize;                       
+        if (windowBytesRead >= acknowledgementWindowSize) {
+            windowBytesRead -= acknowledgementWindowSize;
             throw new WindowAckRequired(totalBytesRead, packet);
         }
-    }       
+    }
 }

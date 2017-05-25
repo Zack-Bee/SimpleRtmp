@@ -20,7 +20,13 @@ public class FlvInputStreamWriter extends FlvWriter implements InputStreamWrappe
         out = new PipedOutputStream(inputStream);
         writeHeader();
     }
-    
+
+    public FlvInputStreamWriter(int pipesize) throws IOException {
+        inputStream = new PipedInputStream(pipesize);
+        out = new PipedOutputStream(inputStream);
+        writeHeader();
+    }
+
     @Override
     public void open(String filename) throws IOException  {
         throw new IOException("Not supported by this writer. Use FlvWriter instead.");

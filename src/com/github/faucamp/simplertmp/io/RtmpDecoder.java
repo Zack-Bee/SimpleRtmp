@@ -78,6 +78,7 @@ public class RtmpDecoder {
                 break;
             case VIDEO:
                 rtmpPacket = new Video(header);
+                break;
             case COMMAND_AMF0:
                 rtmpPacket = new Command(header);
                 break;

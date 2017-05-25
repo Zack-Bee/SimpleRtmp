@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import com.github.faucamp.simplertmp.Util;
+import com.github.faucamp.simplertmp.util.L;
 
 /**
  * AMF Array
@@ -19,7 +20,13 @@ public class AmfArray implements AmfData {
 
     @Override
     public void writeTo(OutputStream out) throws IOException {
-        throw new UnsupportedOperationException("Not supported yet.");
+        //throw new UnsupportedOperationException("Not supported yet.");
+        //out.write();
+        Util.writeUnsignedInt32(out, items.size());
+        for (AmfData dataItem : items) {
+            dataItem.writeTo(out);
+            L.w("write dataItem");
+        }
     }
 
     @Override

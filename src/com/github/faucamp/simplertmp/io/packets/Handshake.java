@@ -101,9 +101,12 @@ public final class Handshake {
         random.nextBytes(partBeforeDigest);
 
         L.d("writeC1(): Writing timestamp and Flash Player version");
-        byte[] timeStamp = Util.unsignedInt32ToByteArray((int) (System.currentTimeMillis() / 1000));
-        System.arraycopy(timeStamp, 0, partBeforeDigest, 0, 4); // Bytes 0 - 3 bytes: current epoch timestamp
-        System.arraycopy(new byte[]{(byte) 0x80, 0x00, 0x07, 0x02}, 0, partBeforeDigest, 4, 4); // Bytes 4 - 7: Flash player version: 11.2.202.233
+        //byte[] timeStamp = Util.unsignedInt32ToByteArray((int) (System.currentTimeMillis() / 1000));
+        //System.arraycopy(timeStamp, 0, partBeforeDigest, 0, 4); // Bytes 0 - 3 bytes: current epoch timestamp
+        //System.arraycopy(new byte[]{(byte) 0x80, 0x00, 0x07, 0x02}, 0, partBeforeDigest, 4, 4); // Bytes 4 - 7: Flash player version: 11.2.202.233
+        byte[] timeStamp = {0, 0, 0, 0};
+        System.arraycopy(timeStamp, 0, partBeforeDigest, 0, 4);
+        System.arraycopy(new byte[]{(byte) 0x09, 0x00, 0x7c, 0x02}, 0, partBeforeDigest, 4, 4);
 
         // Create random bytes for the part after the digest
         byte[] partAfterDigest = new byte[HANDSHAKE_SIZE - absoluteDigestOffset - SHA256_DIGEST_SIZE]; // subtract 8 because of initial 8 bytes already written

@@ -29,7 +29,7 @@ public interface RtmpClient {
      * @throws IllegalStateException if the client is not connected to a RTMP server
      * @throws IOException if a network/IO error occurs
      */
-    void play(String playPath, RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException;
+    void play(RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException;
         
     /**
      * Issues an RTMP "play" command and uses the specified RtmpStreamWriter to
@@ -43,7 +43,7 @@ public interface RtmpClient {
      * @throws IllegalStateException if the client is not connected to a RTMP server
      * @throws IOException if a network/IO error occurs
      */
-    void playAsync(String playPath, RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException;
+    void playAsync(RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException;
     
     /**
      * Stops and closes the current RTMP stream

@@ -20,6 +20,11 @@ public class RawInputStreamWriter extends RawOutputStreamWriter implements Input
         out = new PipedOutputStream(inputStream);
     }
 
+    public RawInputStreamWriter(int pipesize) throws IOException {
+        inputStream = new PipedInputStream(pipesize);
+        out = new PipedOutputStream(inputStream);
+    }
+
     @Override
     public InputStream getInputStream() {
         return inputStream;

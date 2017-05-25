@@ -14,7 +14,8 @@ public class L {
     }
     
     
-    public static void t(String message) {        
+    public static void t(String message) {
+        System.out.println(message);
     }
     
     public static void d(String message) {
@@ -42,5 +43,4 @@ public class L {
         System.out.println(message);
         t.printStackTrace();
     }
-    
 }

@@ -24,6 +24,7 @@ import com.github.faucamp.simplertmp.io.packets.Data;
 import com.github.faucamp.simplertmp.io.packets.UserControl;
 import com.github.faucamp.simplertmp.io.packets.RtmpPacket;
 import com.github.faucamp.simplertmp.io.packets.WindowAckSize;
+import com.github.faucamp.simplertmp.io.packets.RtmpHeader;
 import com.github.faucamp.simplertmp.output.RtmpStreamWriter;
 import com.github.faucamp.simplertmp.util.L;
 
@@ -37,8 +38,10 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
     private String appName;
     private String host;
     private String streamName;
+    private String playPath;
     private String swfUrl = "http://localhost:5080/demos/ofla_demo.swf";
-    private String tcUrl = "rtmp://localhost/oflaDemo";
+    //private String tcUrl = "rtmp://localhost/oflaDemo";
+    private String tcUrl;
     private String pageUrl = "http://localhost:5080";
     private int port;
     private Socket socket;
@@ -59,10 +62,13 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
     /** Used to track stream position for pause/resume */
     private int streamPosition = 0;
 
-    public RtmpConnection(String host, int port, String appName) {
+    public RtmpConnection(String host, int port, String appName, String playpath) {
         this.host = host;
         this.port = port;
         this.appName = appName;
+        this.playPath = playpath;
+        this.tcUrl = "rtmp://" + host + ":" + port + "/" + appName;
+        L.w(tcUrl);
         rtmpSessionInfo = new RtmpSessionInfo();
         rxPacketQueue = new ConcurrentLinkedQueue<RtmpPacket>();
     }
@@ -103,16 +109,16 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
     }
 
     @Override
-    public void play(String playPath, RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException {
+    public void play(RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException {
         rtmpPlay(playPath, rtmpStreamWriter, true);
     }
 
     @Override
-    public void playAsync(String playPath, RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException {
+    public void playAsync(RtmpStreamWriter rtmpStreamWriter) throws IllegalStateException, IOException {
         rtmpPlay(playPath, rtmpStreamWriter, false);
     }
 
-    private void rtmpPlay(String playPath, RtmpStreamWriter rtmpStreamWriter, boolean block) throws IllegalStateException, IOException {
+    private void rtmpPlay(String playpath, RtmpStreamWriter rtmpStreamWriter, boolean block) throws IllegalStateException, IOException {
         if (connecting) {
             synchronized (connectingLock) {
                 try {
@@ -130,31 +136,30 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
 
         if (currentStreamId != -1) {
             // A stream object exists; play the requested stream name
-            Command play = new Command("play", transactionIdCounter);
+            rtmpSendgetStreamLength();
+
+            Command play = new Command("play", ++transactionIdCounter);
             play.getHeader().setChunkStreamId(ChunkStreamInfo.RTMP_STREAM_CHANNEL);
             play.getHeader().setMessageStreamId(currentStreamId);
             play.addData(new AmfNull());
             play.addData(playPath); // what to play
-            play.addData(0); // play start position
-            play.addData(-2); // play duration
-            //L.i("+++++++  WRITING PLAY packet ++++++++");
-            //writeThread.send(play);
+            play.addData(-2000); // play duration
+
             // Set buffer length of the message stream to 5000ms (just Flash Player)
-            final ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(ChunkStreamInfo.CONTROL_CHANNEL);
-
-            // Set buffer length of message stream 0 to 5000ms (just Flash Player)
-            UserControl userControl = new UserControl(UserControl.Type.SET_BUFFER_LENGTH, chunkStreamInfo);
-            userControl.setEventData(0, 5000);
-            writeThread.send(userControl);
-
+            final ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(ChunkStreamInfo.RTMP_STREAM_CHANNEL);
             UserControl userControl2 = new UserControl(UserControl.Type.SET_BUFFER_LENGTH, chunkStreamInfo);
-            userControl2.setEventData(currentStreamId, 5000);
+            userControl2.getHeader().setChunkType(RtmpHeader.ChunkType.TYPE_1_RELATIVE_LARGE);
+            userControl2.getHeader().setAbsoluteTimestamp(0);
+            userControl2.getHeader().setTimestampDelta(0);
+            userControl2.setEventData(currentStreamId, 3000);
             L.d("rtmpPlay(): Writing play & control packets");
             writeThread.send(play, userControl2);
         } else {
             // No current stream object exists; first issue the createStream command
             // - the handler for the response of that command will call rtmpPlay() again (without blocking)
             rtmpCreateStream();
+            //let send checkbw packet
+            rtmpSendcheckBw();
         }
 
         if (block) {
@@ -173,7 +178,39 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
         final ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(ChunkStreamInfo.RTMP_COMMAND_CHANNEL);
         // Send createStream() command
         Command createStream = new Command("createStream", ++transactionIdCounter, chunkStreamInfo);
+        createStream.getHeader().setAbsoluteTimestamp(0);
+        createStream.getHeader().setTimestampDelta(0);
         writeThread.send(createStream);
+    }
+
+    private void rtmpSendWindowAckSize() {
+        L.d("Sending getStreamLength command...");
+        final ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(ChunkStreamInfo.CONTROL_CHANNEL);
+        WindowAckSize was = new WindowAckSize(rtmpSessionInfo.getAcknowledgementWindowSize(), chunkStreamInfo);
+        was.setAcknowledgementWindowSize(rtmpSessionInfo.getAcknowledgementWindowSize());
+        writeThread.send(was);
+    }
+
+    private void rtmpSendgetStreamLength() {
+        L.d("Sending getStreamLength command...");
+        final ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(ChunkStreamInfo.CONTROL_CHANNEL);
+        // Send createStream() command
+        Command getStreamLength = new Command("getStreamLength", ++transactionIdCounter, chunkStreamInfo);
+        getStreamLength.getHeader().setAbsoluteTimestamp(0);
+        getStreamLength.getHeader().setTimestampDelta(0);
+        getStreamLength.addData(new AmfNull());
+        getStreamLength.addData(playPath);
+        writeThread.send(getStreamLength);
+    }
+
+    private void rtmpSendcheckBw() {
+        L.d("Sending _checkBw command...");
+        final ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(ChunkStreamInfo.RTMP_COMMAND_CHANNEL);
+        // Send createStream() command
+        Command checkbw = new Command("_checkbw", ++transactionIdCounter, chunkStreamInfo);
+        checkbw.getHeader().setAbsoluteTimestamp(0);
+        checkbw.getHeader().setTimestampDelta(0);
+        writeThread.send(checkbw);
     }
 
     @Override
@@ -247,15 +284,16 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
 
         AmfObject args = new AmfObject();
         args.setProperty("app", appName);
-        args.setProperty("flashVer", "LNX 11,2,202,233"); // Flash player OS: Linux, version: 11.2.202.233
-        args.setProperty("swfUrl", swfUrl);
+        //args.setProperty("flashVer", "LNX 11,2,202,233"); // Flash player OS: Linux, version: 11.2.202.233
+        args.setProperty("flashVer", "LNX 9,0,124,2"); // Flash player OS: Linux, version: 11.2.202.233
+        //args.setProperty("swfUrl", swfUrl);
         args.setProperty("tcUrl", tcUrl);
         args.setProperty("fpad", false);
-        args.setProperty("capabilities", 239);
-        args.setProperty("audioCodecs", 3575);
+        args.setProperty("capabilities", 15);
+        args.setProperty("audioCodecs", 3191);
         args.setProperty("videoCodecs", 252);
         args.setProperty("videoFunction", 1);
-        args.setProperty("pageUrl", pageUrl);
+        //args.setProperty("pageUrl", pageUrl);
 
         invoke.addData(args);
 
@@ -281,7 +319,7 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
         while (active) {
             RtmpPacket rtmpPacket = rxPacketQueue.poll();
             while (rtmpPacket != null) {
-
+                L.d("read rtmppacket !!!");
                 switch (rtmpPacket.getHeader().getMessageType()) {
                     case ABORT:
                         rtmpSessionInfo.getChunkStreamInfo(((Abort) rtmpPacket).getChunkStreamId()).clearStoredChunks();
@@ -309,6 +347,7 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
                             L.d("handleRxPacketLoop(): Setting acknowledgement window size to: " + windowAckSize.getAcknowledgementWindowSize());
                         }
                         rtmpSessionInfo.setAcknowledgmentWindowSize(windowAckSize.getAcknowledgementWindowSize());
+                        rtmpSendWindowAckSize();
                         break;
                     }
                     case COMMAND_AMF0:
@@ -322,7 +361,9 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
                         break;
                     }
                     case AUDIO:
+                        L.d("read audio data");
                     case VIDEO:
+                        L.d("read video data");
                         streamPosition = rtmpPacket.getHeader().getAbsoluteTimestamp();
                         rtmpStreamWriter.write((ContentData) rtmpPacket);
                         break;
@@ -361,7 +402,6 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
                     connectingLock.notifyAll();
                 }
             } else if ("createStream".contains(method)) {
-
                 currentStreamId = (int) ((AmfNumber) invoke.getData().get(1)).getValue();
                 if (L.isDebugEnabled()) {
                     L.d("handleRxInvoke(): Stream ID to play: " + currentStreamId);
@@ -374,8 +414,6 @@ public class RtmpConnection implements RtmpClient, PacketRxHandler, ThreadContro
             } else {
                 L.w("handleRxInvoke(): '_result' message received for unknown method: " + method);
             }
-//        } else if (commandName.equals("onStatus")) {
-//            }
         } else {
             L.e("handleRxInvoke(): Uknown/unhandled server invoke: " + invoke);
         }
