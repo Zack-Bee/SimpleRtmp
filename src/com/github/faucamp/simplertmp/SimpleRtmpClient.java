@@ -15,8 +15,9 @@ public class SimpleRtmpClient {
     public static void main(String args[]) {
         SyncRtmpClient mClient;
         try {
-            //mClient = new RtmpConnection("livestreaming.itworkscdn.net", 1935, "smc4sportslive", "smc4tv_360p");
-            mClient = new SyncRtmpClient("live.hkstv.hk.lxdns.com", 1935, "live", "hks");
+            // mClient = new SyncRtmpClient("58.200.131.2", 1935, "livetv", "hunantv");
+            // mClient = new SyncRtmpClient("127.0.0.1", 1935, "abcs", "obs");
+            mClient = new SyncRtmpClient("127.0.0.1", 1935, "video", "dump.flv");
             //mClient = new SyncRtmpClient("ftv.sun0769.com", 1935, "dgrtv1", "mp4:b1");
             L.w("connect start");
             mClient.connect();
@@ -25,7 +26,7 @@ public class SimpleRtmpClient {
             return;
         }
 
-        File file = new File("/home/jsyan/test.flv");
+        File file = new File("./try.flv");
         FileOutputStream fo = null;
         if (file.exists()) {
             file.delete();
@@ -37,7 +38,8 @@ public class SimpleRtmpClient {
                 e.printStackTrace();
             }
         }
-        byte[] buffer = new byte[32 * 1024];
+        byte[] buffer = new byte[258 * 1024]; // 32KB的缓存也会因为数据量过大而丢弃数据
+        System.out.println("fo == null?: " + fo == null);
         while (true) {
             try {
                 //L.w("read begin");

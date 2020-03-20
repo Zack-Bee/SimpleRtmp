@@ -178,7 +178,7 @@ public class RtmpHeader {
         /** The full size (in bytes) of this RTMP header (including the basic header byte) */
         private int size;
         private static final Map<Byte, ChunkType> quickLookupMap = new HashMap<Byte, ChunkType>();
-        
+
         static {
             for (ChunkType messageTypId : ChunkType.values()) {
                 quickLookupMap.put(messageTypId.getValue(), messageTypId);
@@ -237,7 +237,7 @@ public class RtmpHeader {
         if (basicHeaderByte == -1) {
             throw new IOException("Unexpected EOF while reading RTMP packet basic header");
         }
-        // Read byte 0: chunk type and chunk stream ID        
+        // Read byte 0: chunk type and chunk stream ID
         parseBasicHeader((byte) basicHeaderByte);
 
         switch (chunkType) {
@@ -266,6 +266,12 @@ public class RtmpHeader {
                 try {
                     messageStreamId = prevHeader.messageStreamId;
                     absoluteTimestamp = prevHeader.absoluteTimestamp + timestampDelta;
+                    System.out.println("\n");
+                    System.out.println("prev header messageStreamId: " + prevHeader.messageStreamId);
+                    System.out.println("prev header absoluteTimestamp: " + prevHeader.absoluteTimestamp);
+                    System.out.println("current header delta timestamp: " + timestampDelta);
+                    System.out.println("current header absolute timestamp: " + absoluteTimestamp);
+                    System.out.println("\n");
                 } catch (NullPointerException ex) {
                     messageStreamId = 0;
                     absoluteTimestamp = timestampDelta;
@@ -295,6 +301,7 @@ public class RtmpHeader {
                 L.e("readHeaderImpl(): Invalid chunk type; basic header byte was: " + Util.toHexString((byte) basicHeaderByte));
                 throw new IOException("Invalid chunk type; basic header byte was: " + Util.toHexString((byte) basicHeaderByte));
         }
+        System.out.println("the result absoluteTimestamp" + absoluteTimestamp);
     }
 
     public void writeTo(OutputStream out, final ChunkStreamInfo chunkStreamInfo) throws IOException {

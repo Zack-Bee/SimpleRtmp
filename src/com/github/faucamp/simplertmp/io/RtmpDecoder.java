@@ -23,6 +23,8 @@ public class RtmpDecoder {
 
     private RtmpSessionInfo rtmpSessionInfo;
 
+    private RtmpHeader firstHeaderOfBigData;
+
     public RtmpDecoder(RtmpSessionInfo rtmpSessionInfo) {
         this.rtmpSessionInfo = rtmpSessionInfo;
     }
@@ -37,18 +39,28 @@ public class RtmpDecoder {
         ChunkStreamInfo chunkStreamInfo = rtmpSessionInfo.getChunkStreamInfo(header.getChunkStreamId());
 
         chunkStreamInfo.setPrevHeaderRx(header);
-
+        System.out.println("packet length: " + header.getPacketLength());
+        System.out.println("chunk size: " + rtmpSessionInfo.getChunkSize());
         if (header.getPacketLength() > rtmpSessionInfo.getChunkSize()) {
-            L.d("readPacket(): packet size (" + header.getPacketLength() + ") is bigger than chunk size (" + rtmpSessionInfo.getChunkSize() + "); storing chunk data");
+            System.out.println("readPacket(): packet size (" + header.getPacketLength() + ") is bigger than chunk size (" + rtmpSessionInfo.getChunkSize() + "); storing chunk data");
             // This packet consists of more than one chunk; store the chunks in the chunk stream until everything is read
             if (!chunkStreamInfo.storePacketChunk(in, rtmpSessionInfo.getChunkSize())) {
-                L.d(" readPacket(): returning null because of incomplete packet");                
+                if (firstHeaderOfBigData == null) {
+                    firstHeaderOfBigData = header;
+                }
+                L.d(" readPacket(): returning null because of incomplete packet");
                 return null; // packet is not yet complete
             } else {
+
+                // use first header as the result header of big packet
+                header = firstHeaderOfBigData;
+                firstHeaderOfBigData = null;
+                rtmpSessionInfo.getChunkStreamInfo(header.getChunkStreamId()).setPrevHeaderRx(header);
                 L.d(" readPacket(): stored chunks complete packet; reading packet");
                 in = chunkStreamInfo.getStoredPacketInputStream();
             }
         } else {
+            firstHeaderOfBigData = null;
             L.d("readPacket(): packet size (" + header.getPacketLength() + ") is LESS than chunk size (" + rtmpSessionInfo.getChunkSize() + "); reading packet fully");
         }
 
@@ -58,7 +70,7 @@ public class RtmpDecoder {
                 SetChunkSize setChunkSize = new SetChunkSize(header);
                 setChunkSize.readBody(in);
                 L.d("readPacket(): Setting chunk size to: " + setChunkSize.getChunkSize());
-                rtmpSessionInfo.setChunkSize(setChunkSize.getChunkSize());                
+                rtmpSessionInfo.setChunkSize(setChunkSize.getChunkSize());
                 return null;
             }
             case ABORT:
@@ -87,8 +99,8 @@ public class RtmpDecoder {
                 break;
             default:
                 throw new IOException("No packet body implementation for message type: " + header.getMessageType());
-        }                
-        rtmpPacket.readBody(in);                        
+        }
+        rtmpPacket.readBody(in);
         return rtmpPacket;
     }
 }

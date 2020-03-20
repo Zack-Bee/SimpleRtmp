@@ -15,6 +15,7 @@ import com.github.faucamp.simplertmp.io.packets.RtmpHeader;
 import com.github.faucamp.simplertmp.io.packets.RtmpPacket;
 import com.github.faucamp.simplertmp.io.packets.UserControl;
 import com.github.faucamp.simplertmp.io.packets.WindowAckSize;
+import com.github.faucamp.simplertmp.io.packets.RtmpHeader.MessageType;
 import com.github.faucamp.simplertmp.util.Log;
 
 import java.io.BufferedInputStream;
@@ -112,6 +113,7 @@ public class SyncRtmpClient {
         RtmpPacket rtmpPacket = recvRtmpPkt();
         switch (rtmpPacket.getHeader().getMessageType()) {
             case DATA_AMF0: {
+                System.out.println("\n\n");
                 Log.d(TAG, " amf0 data");
                 n = 0;
                 Data metadata = (Data) rtmpPacket;
@@ -122,9 +124,11 @@ public class SyncRtmpClient {
                     System.arraycopy(flvheader, 0, buf, 0, flvheader.length);
                     n += flvheader.length;
 
+                    // 封装onMetaData进script tag
                     byte[] tag;
                     //write tag header
                     //type 1 byte
+                    // 0x12 00010010 script data
                     buf[n] = metadata.getHeader().getMessageType().getValue();
                     n += 1;
 
@@ -138,7 +142,7 @@ public class SyncRtmpClient {
                     System.arraycopy(tag, 1, buf, n, tag.length - 1);
                     n += (tag.length - 1);
 
-                    //reserved 4 bytes
+                    //reserved 4 bytes TimestampExtended(1bytes) + StreamID(3bytes always 0)
                     System.arraycopy(RESERVED, 0, buf, n, RESERVED.length);
                     n += RESERVED.length;
 
@@ -156,11 +160,14 @@ public class SyncRtmpClient {
                     n += tag.length;
                     Log.d(TAG, " onMetaData packet size " + n);
                 }
+                System.out.println("\n\n");
                 break;
             }
             case AUDIO:
             case VIDEO:
+                System.out.println("\n\n");
                 Log.d(TAG, " av/data");
+                Log.d(TAG, rtmpPacket.getHeader().getMessageType() == MessageType.AUDIO ? " Audio" : " Video");
                 ContentData avdata = (ContentData) rtmpPacket;
                 byte[] tag;
                 //write tag header
@@ -172,15 +179,16 @@ public class SyncRtmpClient {
                 tag = Util.unsignedInt32ToByteArray(rtmpPacket.getHeader().getPacketLength());
                 System.arraycopy(tag, 1, buf, n, tag.length - 1);
                 n += (tag.length - 1);
-                Log.d(TAG, "packet len " + avdata.getHeader().getPacketLength() + "n " + n);
+                Log.d(TAG, " packet len " + avdata.getHeader().getPacketLength());
 
                 //pts 3 bytes
                 tag = Util.unsignedInt32ToByteArray(avdata.getHeader().getAbsoluteTimestamp());
+
                 System.arraycopy(tag, 1, buf, n, tag.length - 1);
                 n += (tag.length - 1);
                 Log.d(TAG, "pts " + avdata.getHeader().getAbsoluteTimestamp() + "n " + n);
 
-                //reserved
+                //reserved 4bytes TimestampExtended(1bytes) + StreamID(3bytes always 0)
                 System.arraycopy(RESERVED, 0, buf, n, RESERVED.length);
                 n += RESERVED.length;
 
@@ -194,6 +202,13 @@ public class SyncRtmpClient {
                 } else {
                     System.arraycopy(avdata.getData(), 0, buf, n, avdata.getData().length);
                 }
+                // RtmpHeader avdataHeader = avdata.getHeader();
+                // Log.d("getTimestampDelta: ", "" + avdataHeader.getTimestampDelta());
+                // Log.d("getMessageType: ", "" + avdataHeader.getMessageType());
+                // Log.d("getMessageStreamId: ", "" + avdataHeader.getMessageStreamId());
+                // Log.d("getChunkStreamId: ", "" + avdataHeader.getChunkStreamId());
+                // Log.d("getAbsoluteTimestamp: ", "" + avdataHeader.getAbsoluteTimestamp());
+                // Log.d("****data****: ", Util.toHexString(avdata.getData()));
                 n += avdata.getData().length;
 
                 //write prev tag size
@@ -201,6 +216,7 @@ public class SyncRtmpClient {
                 System.arraycopy(tag, 0, buf, n, tag.length);
                 n += tag.length;
                 Log.d(TAG, " audio/video packet size " + n);
+                System.out.println("\n\n");
                 break;
             default:
                 n = 0;
